@@ -5,7 +5,7 @@ import subprocess
 import uvicorn
 import random
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, HTTPException, status
 
 import schemas
 
@@ -44,13 +44,21 @@ def make_playlist():
 
 @app.get("/playback", response_model=schemas.Playback, tags=["Playback"])
 async def playback(operation: str):
-    print(operation)
+    command_exception = HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Command not valid",
+    )
     global proc
     if operation == 'play':
         proc = subprocess.Popen(['ezstream', '-c', '/ezstream/ezstream-file_template.xml'])
-    if operation == 'next':
-        os.system(f'kill -SIGHUP {proc.pid} && kill -SIGUSR1 {proc.pid}')
-    return {'operation': str(proc.pid)}
+    elif operation == 'stop':
+        proc = subprocess.Popen(['kill', '-9', str(proc.pid)])
+    elif operation == 'next':
+        subprocess.Popen(['kill', '-SIGHUP', str(proc.pid)])
+        subprocess.Popen(['kill', '-SIGUSR1', str(proc.pid)])
+    else:
+        raise command_exception
+    return {f'operation': f'{operation} ok'}
 
 
 if __name__ == "__main__":
