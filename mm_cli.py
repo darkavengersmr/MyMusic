@@ -15,7 +15,7 @@ loop = asyncio.get_event_loop()
 
 db_client = motor.motor_asyncio.AsyncIOMotorClient(f'mongodb://{DBSOCKET}', io_loop=asyncio.get_event_loop())
 db = db_client.my_music
-my_music_collection = db.my_music
+my_music_collection = db.music
 
 
 def createParser():

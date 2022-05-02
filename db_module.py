@@ -29,4 +29,4 @@ async def add_to_db(collection, playlist):
 
 
 async def update_now_play(collection, user, track):
-    await collection.insert_one({user: track})
+    await collection.insert_one({'user: track'})
