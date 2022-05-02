@@ -1,11 +1,12 @@
 #!/usr/bin/python3
 
+import sys
 from tinytag import TinyTag
 
 import asyncio
 import motor.motor_asyncio
 
-from config import DBSOCKET, USER
+from config import DBSOCKET
 
 from db_module import next_track, update_now_play
 
@@ -23,9 +24,10 @@ tags = {
     'artist': tag.artist,
     'album': tag.album,
     'title': tag.title,
-    'tag.genre': tag.genre
+    'genre': tag.genre
 }
 
-loop.run_until_complete(update_now_play(my_music_settings, USER, track['fullname'], tags))
+user = sys.argv[0][sys.argv[0].find("_")+1:len(sys.argv[0])-3]
+loop.run_until_complete(update_now_play(my_music_settings, user, track['fullname'], tags))
 
 print(track['fullname'])

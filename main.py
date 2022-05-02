@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+import os
 import subprocess
 from datetime import datetime, timedelta
 
@@ -14,14 +15,16 @@ from passlib.context import CryptContext
 
 import schemas
 
-from config import USER, PASSWORD, SECRET_KEY, EXCEPTION_PER_SEC_LIMIT, \
+from config import SECRET_KEY, EXCEPTION_PER_SEC_LIMIT, \
     ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
+
+from db_module import get_credentials
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth")
 
-proc = {}
+proc_pid = {}
 
 tags_metadata = [
     {
@@ -52,7 +55,8 @@ async def shutdown():
 
 
 async def authenticate_user(username: str, password: str):
-    if username == USER and password == PASSWORD:
+    credentials = await get_credentials()
+    if credentials[username] == password:
         return True
     else:
         return False
@@ -83,9 +87,9 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         token_data = schemas.TokenData(username=username)
     except JWTError:
         raise credentials_exception
-    #user = await get_user(username=token_data.username)
-    if token_data.username == USER:
-        return {'username': USER}
+    credentials = await get_credentials()
+    if token_data.username in credentials:
+        return {'username': token_data.username}
     else:
         raise credentials_exception
 
@@ -108,18 +112,28 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 
 
 @app.get("/playback", response_model=schemas.Playback, tags=["Playback"])
-async def playback(operation: str, processes=proc, current_user: schemas.User = Depends(get_current_user)):
+async def playback(operation: str, current_user: schemas.User = Depends(get_current_user)):
     command_exception = HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
         detail="Command not valid",
     )
+    user = current_user['username']
     if operation == 'play':
-        processes[current_user['username']] = subprocess.Popen(['ezstream', '-c', '/ezstream/ezstream-file_template.xml'])
+        #os.system(f'cp ezstream_template.xml ezstream_{user}.xml')
+        template_out = open(f"ezstream_{user}.xml", "w")
+        with open("ezstream_template.xml", "r") as template_in:
+            for line in template_in:
+                template_out.write(line.replace('%USERNAME%', user))
+        template_out.close()
+        os.system(f'cp playlist.py playlist_{user}.py')
+        proc_pid[user] = subprocess.Popen(['ezstream', '-c', f'/ezstream/ezstream_{user}.xml']).pid
     elif operation == 'stop':
-        processes[current_user['username']] = subprocess.Popen(['kill', '-9', str(processes[USER].pid)])
+        os.system(f'rm ezstream_{user}.xml')
+        os.system(f'rm playlist_{user}.py')
+        proc_pid[user] = subprocess.Popen(['kill', '-9', str(proc_pid[user])])
     elif operation == 'next':
-        subprocess.Popen(['kill', '-SIGHUP', str(processes[current_user['username']].pid)])
-        subprocess.Popen(['kill', '-SIGUSR1', str(processes[current_user['username']].pid)])
+        subprocess.Popen(['kill', '-SIGHUP', str(proc_pid[user])])
+        subprocess.Popen(['kill', '-SIGUSR1', str(proc_pid[user])])
     else:
         raise command_exception
     return {f'operation': f'{operation} ok'}

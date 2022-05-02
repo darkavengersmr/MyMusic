@@ -1,6 +1,16 @@
 #!/usr/bin/python3
 
+import asyncio
+import motor.motor_asyncio
 from tinytag import TinyTag
+
+from config import DBSOCKET
+
+db_client = motor.motor_asyncio.AsyncIOMotorClient(f'mongodb://{DBSOCKET}')
+db = db_client.my_music
+my_music_collection = db.music
+my_music_settings = db.settings
+
 
 async def do_insert_one(collection, document):
     result = await collection.insert_one(document)
@@ -55,3 +65,7 @@ async def update_now_play(collection, user, track, tags):
     else:
         await collection.insert_one({user: {'last_track': {'fullname': track, **tags}}})
 
+
+async def get_credentials():
+    res = await my_music_settings.find_one({"login": { "$exists" : True }})
+    return res["login"]
