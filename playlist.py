@@ -18,7 +18,7 @@ my_music_settings = db.settings
 
 track = loop.run_until_complete(next_track(my_music_collection))
 
-tag = TinyTag.get(track)
+tag = TinyTag.get(track['fullname'].rstrip())
 tags = {
     'artist': tag.artist,
     'album': tag.album,

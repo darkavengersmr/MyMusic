@@ -21,7 +21,7 @@ from config import USER, PASSWORD, SECRET_KEY, EXCEPTION_PER_SEC_LIMIT, \
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth")
 
-proc = None
+proc = {}
 
 tags_metadata = [
     {
@@ -108,19 +108,18 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 
 
 @app.get("/playback", response_model=schemas.Playback, tags=["Playback"])
-async def playback(operation: str, current_user: schemas.User = Depends(get_current_user)):
+async def playback(operation: str, processes=proc, current_user: schemas.User = Depends(get_current_user)):
     command_exception = HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
         detail="Command not valid",
     )
-    global proc
     if operation == 'play':
-        proc = subprocess.Popen(['ezstream', '-c', '/ezstream/ezstream-file_template.xml'])
+        processes[current_user['username']] = subprocess.Popen(['ezstream', '-c', '/ezstream/ezstream-file_template.xml'])
     elif operation == 'stop':
-        proc = subprocess.Popen(['kill', '-9', str(proc.pid)])
+        processes[current_user['username']] = subprocess.Popen(['kill', '-9', str(processes[USER].pid)])
     elif operation == 'next':
-        subprocess.Popen(['kill', '-SIGHUP', str(proc.pid)])
-        subprocess.Popen(['kill', '-SIGUSR1', str(proc.pid)])
+        subprocess.Popen(['kill', '-SIGHUP', str(processes[current_user['username']].pid)])
+        subprocess.Popen(['kill', '-SIGUSR1', str(processes[current_user['username']].pid)])
     else:
         raise command_exception
     return {f'operation': f'{operation} ok'}

@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-import random
+from tinytag import TinyTag
 
 async def do_insert_one(collection, document):
     result = await collection.insert_one(document)
@@ -29,15 +29,29 @@ async def next_track(collection):
 async def add_to_db(collection, playlist):
     documents = []
     with open(playlist, "r") as my_playlist:
+        i = 0
         for file in my_playlist:
-            documents.append({'fullname': file})
+            try:
+                tag = TinyTag.get(file.rstrip())
+                tags = {
+                    'artist': tag.artist,
+                    'album': tag.album,
+                    'title': tag.title,
+                    'genre': tag.genre
+                }
+                i += 1
+                if (i % 1000 == 0):
+                    print(i)
+                documents.append({'fullname': file, **tags})
+            except:
+                pass
 
     await do_insert_many(collection, documents)
 
 
 async def update_now_play(collection, user, track, tags):
     if await collection.find_one({user: { "$exists" : True }}):
-        await collection.replace_one({user: { "$exists" : True }}, {user: {'last_track': track, 'tags': tags}}, True)
+        await collection.replace_one({user: { "$exists" : True }}, {user: {'last_track': {'fullname': track, **tags}}}, True)
     else:
-        await collection.insert_one({user: {'last_track': track, 'tags': tags}})
+        await collection.insert_one({user: {'last_track': {'fullname': track, **tags}}})
 
