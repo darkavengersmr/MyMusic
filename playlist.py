@@ -1,5 +1,7 @@
 #!/usr/bin/python3
 
+from tinytag import TinyTag
+
 import asyncio
 import motor.motor_asyncio
 
@@ -15,5 +17,15 @@ my_music_collection = db.music
 my_music_settings = db.settings
 
 track = loop.run_until_complete(next_track(my_music_collection))
-loop.run_until_complete(update_now_play(my_music_settings, USER, track['fullname']))
+
+tag = TinyTag.get(track)
+tags = {
+    'artist': tag.artist,
+    'album': tag.album,
+    'title': tag.title,
+    'tag.genre': tag.genre
+}
+
+loop.run_until_complete(update_now_play(my_music_settings, USER, track['fullname'], tags))
+
 print(track['fullname'])
