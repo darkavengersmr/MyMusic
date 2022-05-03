@@ -119,18 +119,20 @@ async def playback(operation: str, current_user: schemas.User = Depends(get_curr
     )
     user = current_user['username']
     if operation == 'play':
-        template_out = open(f"ezstream_{user}.xml", "w")
-        with open("ezstream_template.xml", "r") as template_in:
-            for line in template_in:
-                template_out.write(line.replace('%USERNAME%', user))
-        template_out.close()
-        os.system(f'cp playlist.py playlist_{user}.py')
-        proc_pid[user] = subprocess.Popen(['ezstream', '-c', f'/ezstream/ezstream_{user}.xml']).pid
+        if user not in proc_pid:
+            template_out = open(f"ezstream_{user}.xml", "w")
+            with open("ezstream_template.xml", "r") as template_in:
+                for line in template_in:
+                    template_out.write(line.replace('%USERNAME%', user))
+            template_out.close()
+            os.system(f'cp playlist.py playlist_{user}.py')
+            proc_pid[user] = subprocess.Popen(['ezstream', '-c', f'/ezstream/ezstream_{user}.xml']).pid
     elif operation == 'stop':
-        os.system(f'rm ezstream_{user}.xml')
-        os.system(f'rm playlist_{user}.py')
-        subprocess.Popen(['kill', '-9', str(proc_pid[user])])
-        proc_pid.pop(user)
+        if user in proc_pid:
+            os.system(f'rm ezstream_{user}.xml')
+            os.system(f'rm playlist_{user}.py')
+            subprocess.Popen(['kill', '-9', str(proc_pid[user])])
+            proc_pid.pop(user)
     elif operation == 'next':
         if user in proc_pid:
             subprocess.Popen(['kill', '-SIGHUP', str(proc_pid[user])])
