@@ -28,8 +28,8 @@ async def do_delete_many(collection):
 
 
 async def next_track(collection):
-    res_random = collection.aggregate([{"$sample": {"size": 1}},
-                                {"$match": {"fullname": { "$exists" : True }}}])
+    res_random = collection.aggregate([{"$match": {"fullname": { "$exists" : True }}},
+                                      {"$sample": {"size": 1}}])
     res = []
     async for el in res_random:
         res.append(el)
@@ -60,12 +60,33 @@ async def add_to_db(collection, playlist):
 
 
 async def update_now_play(collection, user, track, tags):
-    if await collection.find_one({user: { "$exists" : True }}):
-        await collection.replace_one({user: { "$exists" : True }}, {user: {'last_track': {'fullname': track, **tags}}}, True)
+    if await collection.find_one({user: {"$exists": True}}):
+        await collection.replace_one({user: {"$exists": True}},
+                                     {user: {'last_track': {'fullname': track, **tags}}}, True)
     else:
         await collection.insert_one({user: {'last_track': {'fullname': track, **tags}}})
 
 
 async def get_credentials():
-    res = await my_music_settings.find_one({"login": { "$exists" : True }})
+    res = await my_music_settings.find_one({"login": {"$exists": True }})
     return res["login"]
+
+
+async def get_top_genres(limit: int = 500):
+    res_all = list(await my_music_collection.distinct("genre"))
+    res = []
+    for el in res_all:
+        num = await my_music_collection.count_documents({"genre": el})
+        if num > limit and el is not None:
+            res.append(el)
+    return res
+
+
+async def get_artists_by_genres(genre: str, limit: int = 20):
+    res_all = list(await my_music_collection.find({"genre": genre}).distinct("artist"))
+    res = []
+    for el in res_all:
+        num = await my_music_collection.count_documents({"artist": el})
+        if num > limit and el is not None:
+            res.append(el)
+    return res

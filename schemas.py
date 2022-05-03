@@ -28,5 +28,6 @@ class TokenData(BaseModel):
 
 class Playback(BaseModel):
     operation: str
+    username: str
 
 

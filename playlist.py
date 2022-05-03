@@ -10,14 +10,12 @@ from config import DBSOCKET
 
 from db_module import next_track, update_now_play
 
-loop = asyncio.get_event_loop()
-
-db_client = motor.motor_asyncio.AsyncIOMotorClient(f'mongodb://{DBSOCKET}', io_loop=asyncio.get_event_loop())
+db_client = motor.motor_asyncio.AsyncIOMotorClient(f'mongodb://{DBSOCKET}')
 db = db_client.my_music
 my_music_collection = db.music
 my_music_settings = db.settings
 
-track = loop.run_until_complete(next_track(my_music_collection))
+track = asyncio.run(next_track(my_music_collection))
 
 tag = TinyTag.get(track['fullname'].rstrip())
 tags = {
@@ -28,6 +26,6 @@ tags = {
 }
 
 user = sys.argv[0][sys.argv[0].find("_")+1:len(sys.argv[0])-3]
-loop.run_until_complete(update_now_play(my_music_settings, user, track['fullname'], tags))
+asyncio.run(update_now_play(my_music_settings, user, track['fullname'], tags))
 
 print(track['fullname'])

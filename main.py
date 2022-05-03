@@ -56,7 +56,7 @@ async def shutdown():
 
 async def authenticate_user(username: str, password: str):
     credentials = await get_credentials()
-    if credentials[username] == password:
+    if username in credentials and credentials[username] == password:
         return True
     else:
         return False
@@ -119,7 +119,6 @@ async def playback(operation: str, current_user: schemas.User = Depends(get_curr
     )
     user = current_user['username']
     if operation == 'play':
-        #os.system(f'cp ezstream_template.xml ezstream_{user}.xml')
         template_out = open(f"ezstream_{user}.xml", "w")
         with open("ezstream_template.xml", "r") as template_in:
             for line in template_in:
@@ -130,13 +129,23 @@ async def playback(operation: str, current_user: schemas.User = Depends(get_curr
     elif operation == 'stop':
         os.system(f'rm ezstream_{user}.xml')
         os.system(f'rm playlist_{user}.py')
-        proc_pid[user] = subprocess.Popen(['kill', '-9', str(proc_pid[user])])
+        subprocess.Popen(['kill', '-9', str(proc_pid[user])])
+        proc_pid.pop(user)
     elif operation == 'next':
-        subprocess.Popen(['kill', '-SIGHUP', str(proc_pid[user])])
-        subprocess.Popen(['kill', '-SIGUSR1', str(proc_pid[user])])
+        if user in proc_pid:
+            subprocess.Popen(['kill', '-SIGHUP', str(proc_pid[user])])
+            subprocess.Popen(['kill', '-SIGUSR1', str(proc_pid[user])])
+            return {f'operation': 'next ok', 'username': user}
+        else:
+            return {f'operation': 'status: stop', 'username': user}
+    elif operation == 'status':
+        if user in proc_pid:
+            return {f'operation': 'status: play', 'username': user}
+        else:
+            return {f'operation': 'status: stop', 'username': user}
     else:
         raise command_exception
-    return {f'operation': f'{operation} ok'}
+    return {f'operation': f'{operation} ok', 'username': user}
 
 
 if __name__ == "__main__":
