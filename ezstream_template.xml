@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<ezstream>
+
+  <servers>
+    <server>
+      <hostname>192.168.32.64</hostname>
+      <port>8000</port>
+      <password>secret_pwd</password>
+    </server>
+  </servers>
+
+  <streams>
+    <stream>
+      <mountpoint>/stream_%USERNAME%.ogg</mountpoint>
+      <format>Ogg</format>
+      <encoder>OggEnc</encoder>
+    </stream>
+  </streams>
+
+  <intakes>
+    <intake>
+      <filename>/ezstream/playlist_%USERNAME%.py</filename>
+      <type>program</type>
+      <shuffle>1</shuffle>
+    </intake>
+  </intakes>
+
+  <decoders>
+    <decoder>
+      <name>OggDec</name>
+      <program>oggdec -R -b 16 -e 1 -s 1 -o - @T@</program>
+      <file_ext>.ogg</file_ext>
+      <file_ext>.oga</file_ext>
+    </decoder>
+
+    <decoder>
+      <name>MadPlay</name>
+      <program>madplay -b 16 -R 44100 -S -o raw:- @T@</program>
+      <file_ext>.mp3</file_ext>
+    </decoder>
+
+    <decoder>
+      <name>Flac</name>
+      <program>flac -s -d --force-raw-format --sign=signed --endian=little -o - @T@</program>
+      <file_ext>.flac</file_ext>
+    </decoder>
+
+    <decoder>
+      <name>AAC</name>
+      <program>faad -d -f 2 -w @T@</program>
+      <file_ext>.m4a</file_ext>
+    </decoder>
+  </decoders>
+
+  <encoders>
+    <encoder>
+      <name>OggEnc</name>
+      <format>Ogg</format>
+      <program>oggenc -r -B 16 -C 2 -R 44100 --raw-endianness 0 -q 2 -t @M@ -</program>
+    </encoder>
+  </encoders>
+
+</ezstream>
