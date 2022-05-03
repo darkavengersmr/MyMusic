@@ -8,8 +8,8 @@ import asyncio
 import uvicorn
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-#from fastapi.staticfiles import StaticFiles
-#from fastapi.responses import RedirectResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import RedirectResponse, FileResponse
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
@@ -94,6 +94,11 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         raise credentials_exception
 
 
+@app.get("/")
+async def redirect_login():
+    return RedirectResponse(url=f"/index.html", status_code=303)
+
+
 @app.post("/auth", response_model=schemas.Token , tags=["Auth"])
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
     user = await authenticate_user(form_data.username, form_data.password)
@@ -148,6 +153,9 @@ async def playback(operation: str, current_user: schemas.User = Depends(get_curr
     else:
         raise command_exception
     return {f'operation': f'{operation} ok', 'username': user}
+
+
+app.mount("/", StaticFiles(directory="static"), name="static")
 
 
 if __name__ == "__main__":
