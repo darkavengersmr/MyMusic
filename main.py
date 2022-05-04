@@ -9,17 +9,24 @@ import uvicorn
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import RedirectResponse, FileResponse
+from fastapi.responses import RedirectResponse
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+
+from starlette.requests import Request
+from starlette.responses import StreamingResponse
+from starlette.background import BackgroundTask
+
+import httpx
 
 import schemas
 
 from config import SECRET_KEY, EXCEPTION_PER_SEC_LIMIT, \
-    ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
+    ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, MUSIC_STREAM_SOCKET
 
 from db_module import get_credentials
 
+client = httpx.AsyncClient(base_url=MUSIC_STREAM_SOCKET)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth")
@@ -153,6 +160,25 @@ async def playback(operation: str, current_user: schemas.User = Depends(get_curr
     else:
         raise command_exception
     return {f'operation': f'{operation} ok', 'username': user}
+
+
+async def _reverse_proxy(request: Request):
+    url = httpx.URL(path=request.url.path,
+                    query=request.url.query.encode("utf-8"))
+    rp_req = client.build_request(request.method, url,
+                                  headers=request.headers.raw,
+                                  content=await request.body())
+    rp_resp = await client.send(rp_req, stream=True)
+    return StreamingResponse(
+        rp_resp.aiter_raw(),
+        status_code=rp_resp.status_code,
+        headers=rp_resp.headers,
+        background=BackgroundTask(rp_resp.aclose),
+    )
+
+
+app.add_route("/stream_{name}.ogg",
+              _reverse_proxy, ["GET", "POST"])
 
 
 app.mount("/", StaticFiles(directory="static"), name="static")
