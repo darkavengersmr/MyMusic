@@ -1,5 +1,5 @@
 from pydantic import BaseModel, BaseSettings
-
+from typing import List
 
 class Settings(BaseSettings):
     USER: str
@@ -31,3 +31,13 @@ class Playback(BaseModel):
     username: str
 
 
+class MyFilterQuery(BaseModel):
+    type: str
+
+
+class MyFilterOut(BaseModel):
+    result: List[str] = []
+
+
+class MyFilterSet(BaseModel):
+    result: str

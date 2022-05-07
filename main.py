@@ -24,7 +24,7 @@ import schemas
 from config import SECRET_KEY, EXCEPTION_PER_SEC_LIMIT, \
     ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, MUSIC_STREAM_SOCKET
 
-from db_module import get_credentials
+from db_module import get_credentials, get_top_genres, get_top_artists, get_artists_by_genres, get_years, update_filter
 
 client = httpx.AsyncClient(base_url=MUSIC_STREAM_SOCKET)
 
@@ -40,7 +40,11 @@ tags_metadata = [
     },
     {
         "name": "Playback",
-        "description": "Управление воспроизведением",
+        "description": "Управление воспроизведением (operation: play, stop, next, prev)",
+    },
+    {
+        "name": "Filter",
+        "description": "Управление предпочтениями (modes: genres, artists_by_genre)",
     },
 ]
 
@@ -49,6 +53,11 @@ app = FastAPI(
     version="1.0.0",
     openapi_tags=tags_metadata,
 )
+
+command_exception = HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Command not valid",
+    )
 
 
 @app.on_event("startup")
@@ -125,10 +134,6 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 
 @app.get("/playback", response_model=schemas.Playback, tags=["Playback"])
 async def playback(operation: str, current_user: schemas.User = Depends(get_current_user)):
-    command_exception = HTTPException(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        detail="Command not valid",
-    )
     user = current_user['username']
     if operation == 'play':
         if user not in proc_pid:
@@ -145,7 +150,7 @@ async def playback(operation: str, current_user: schemas.User = Depends(get_curr
             os.system(f'rm playlist_{user}.py')
             subprocess.Popen(['kill', '-9', str(proc_pid[user])])
             proc_pid.pop(user)
-    elif operation == 'next':
+    elif operation == 'next': # or operation == 'prev':
         if user in proc_pid:
             subprocess.Popen(['kill', '-SIGHUP', str(proc_pid[user])])
             subprocess.Popen(['kill', '-SIGUSR1', str(proc_pid[user])])
@@ -160,6 +165,32 @@ async def playback(operation: str, current_user: schemas.User = Depends(get_curr
     else:
         raise command_exception
     return {f'operation': f'{operation} ok', 'username': user}
+
+
+@app.get("/filter", response_model=schemas.MyFilterOut, tags=["Filter"])
+async def get_filter(mode: str, genre: str = None, limit_tracks: int = 100,
+                     current_user: schemas.User = Depends(get_current_user)):
+    if mode == 'genres':
+        return {'result': await get_top_genres(limit_tracks=limit_tracks)}
+    elif mode == 'artists':
+        return {'result': await get_top_artists(limit_tracks=limit_tracks)}
+    elif mode == 'artists_by_genre' and genre is not None:
+        return {'result': await get_artists_by_genres(genre)}
+    if mode == 'years':
+        return {'result': await get_years(limit_tracks=limit_tracks)}
+    else:
+        raise command_exception
+
+
+@app.put("/filter", response_model=schemas.MyFilterSet, tags=["Filter"])
+async def set_filter(mode: str, genre: str = None, artist: str = None, year: str = None,
+                     current_user: schemas.User = Depends(get_current_user)):
+    user = current_user['username']
+    modes = ['genre', 'artist', 'year', 'favorites']
+    if mode in modes and await update_filter(user, mode=mode, genre=genre, artist=artist, year=year):
+        return {'result': 'filter ok'}
+    else:
+        raise command_exception
 
 
 async def _reverse_proxy(request: Request):

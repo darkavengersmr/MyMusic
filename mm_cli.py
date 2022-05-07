@@ -47,7 +47,7 @@ if namespace.clear is not None:
 
 if namespace.add is not None:
     playlist = "playlist.txt"
-    os.system(f"find {namespace.path} -name '*.mp3' >{playlist}")
+    #os.system(f"find {namespace.path} -name '*.mp3' >{playlist}")
     loop.run_until_complete(add_to_db(my_music_collection, playlist))
     print(f'New music added')
 
