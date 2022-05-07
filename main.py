@@ -17,6 +17,8 @@ from starlette.requests import Request
 from starlette.responses import StreamingResponse
 from starlette.background import BackgroundTask
 
+from sse_starlette.sse import EventSourceResponse
+
 import httpx
 
 import schemas
@@ -182,7 +184,7 @@ async def get_filter(mode: str, genre: str = None, limit_tracks: int = 100,
         raise command_exception
 
 
-@app.put("/filter", response_model=schemas.MyFilterSet, tags=["Filter"])
+@app.post("/filter", response_model=schemas.MyFilterSet, tags=["Filter"])
 async def set_filter(mode: str, genre: str = None, artist: str = None, year: str = None,
                      current_user: schemas.User = Depends(get_current_user)):
     user = current_user['username']
@@ -191,6 +193,34 @@ async def set_filter(mode: str, genre: str = None, artist: str = None, year: str
         return {'result': 'filter ok'}
     else:
         raise command_exception
+
+
+STREAM_DELAY = 10  # second
+RETRY_TIMEOUT = 15000  # milisecond
+
+@app.get('/now_play')
+async def message_stream(request: Request, user: str):
+    def new_messages():
+        # Add logic here to check for new messages
+        yield 'Hello World'
+    async def event_generator():
+        while True:
+            # If client closes connection, stop sending events
+            if await request.is_disconnected():
+                break
+
+            # Checks for new messages and return them to client if any
+            if new_messages():
+                yield {
+                        "event": "new_message",
+                        "id": "message_id",
+                        "retry": RETRY_TIMEOUT,
+                        "data": user,
+                }
+
+            await asyncio.sleep(STREAM_DELAY)
+
+    return EventSourceResponse(event_generator())
 
 
 async def _reverse_proxy(request: Request):
