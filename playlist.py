@@ -1,5 +1,7 @@
 #!/usr/bin/python3
 
+import ast
+import requests
 import sys
 from tinytag import TinyTag
 
@@ -8,7 +10,7 @@ import motor.motor_asyncio
 
 from config import DBSOCKET
 
-from db_module import next_track, update_now_play
+from db_module import next_track, update_now_play, get_credentials
 
 loop = asyncio.get_event_loop()
 
@@ -31,5 +33,19 @@ tags = {
 }
 
 loop.run_until_complete(update_now_play(my_music_settings, user, track['fullname'], tags))
+
+credentials = loop.run_until_complete(get_credentials())
+if user in credentials:
+    password = credentials[user]
+
+    data = { 'username': user, 'password': password }
+    response = requests.post('http://localhost:8000/auth', data=data)
+
+    dict_str = response.content.decode("UTF-8")
+    mydata = ast.literal_eval(dict_str)
+
+    headers = {"Authorization": f"Bearer {mydata['access_token']}"}
+    params = {"now_play": f"{tag.artist} - {tag.title}"}
+    requests.post('http://localhost:8000/now_play', headers=headers, params=params)
 
 print(track['fullname'])

@@ -41,3 +41,7 @@ class MyFilterOut(BaseModel):
 
 class MyFilterSet(BaseModel):
     result: str
+
+
+class PlayNowSet(BaseModel):
+    result: str

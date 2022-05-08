@@ -34,6 +34,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth")
 
 proc_pid = {}
+users_now_play = {}
 
 tags_metadata = [
     {
@@ -47,6 +48,10 @@ tags_metadata = [
     {
         "name": "Filter",
         "description": "Управление предпочтениями (modes: genres, artists_by_genre)",
+    },
+    {
+        "name": "Play Now",
+        "description": "Что играет сейчас (Server side events)",
     },
 ]
 
@@ -195,14 +200,31 @@ async def set_filter(mode: str, genre: str = None, artist: str = None, year: str
         raise command_exception
 
 
-STREAM_DELAY = 10  # second
-RETRY_TIMEOUT = 15000  # milisecond
+@app.post("/now_play", response_model=schemas.PlayNowSet, tags=["Play Now"])
+async def set_now_play(now_play: str, current_user: schemas.User = Depends(get_current_user)):
+    user = current_user['username']
+    users_now_play[user] = now_play
+    return {'result': f'update play now: {now_play}'}
 
-@app.get('/now_play')
+
+@app.delete("/now_play", response_model=schemas.PlayNowSet, tags=["Play Now"])
+async def set_now_play(current_user: schemas.User = Depends(get_current_user)):
+    user = current_user['username']
+    if user in users_now_play:
+        users_now_play.pop(user)
+        return {'result': f'deletes play now'}
+    else:
+        return {'result': f'nothing to delete'}
+
+
+@app.get('/now_play', tags=["Play Now"])
 async def message_stream(request: Request, user: str):
     def new_messages():
-        # Add logic here to check for new messages
-        yield 'Hello World'
+        if user in users_now_play:
+            return users_now_play[user]
+        else:
+            return None
+
     async def event_generator():
         while True:
             # If client closes connection, stop sending events
@@ -210,15 +232,12 @@ async def message_stream(request: Request, user: str):
                 break
 
             # Checks for new messages and return them to client if any
-            if new_messages():
-                yield {
-                        "event": "new_message",
-                        "id": "message_id",
-                        "retry": RETRY_TIMEOUT,
-                        "data": user,
-                }
+            message = new_messages()
+            if message:
+                print("попытка отправки...")
+                yield message
 
-            await asyncio.sleep(STREAM_DELAY)
+            await asyncio.sleep(1)
 
     return EventSourceResponse(event_generator())
 

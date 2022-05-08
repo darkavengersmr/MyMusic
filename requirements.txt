@@ -8,3 +8,4 @@ asyncio
 motor
 tinytag
 httpx
+sse_starlette
