@@ -32,7 +32,7 @@ async def get_filters(user, collection=my_music_settings):
     if settings and 'filter' in settings:
         return settings['filter']
     else:
-        return {'mode': None, 'genre': None, 'artist': None, 'year': None}
+        return {'mode': None, 'genre': None, 'artist': None, 'year': None, 'mood': None, 'favorite': None}
 
 
 async def next_track(user, collection=my_music_collection):
@@ -47,6 +47,12 @@ async def next_track(user, collection=my_music_collection):
     elif filters['mode'] == 'year' and filters["year"] is not None:
         res_random = collection.aggregate([{"$match": {"year": {'$gte': f'{filters["year"]}',
                                                                 '$lte': f'{(str(int(filters["year"])+9))}'}}},
+                                           {"$sample": {"size": 1}}])
+    elif filters['mode'] == 'favorite' and filters["favorite"] == 'Мне нравятся':
+        res_random = collection.aggregate([{"$match": {user: {"like": "like"}}},
+                                           {"$sample": {"size": 1}}])
+    elif filters['mode'] == 'favorite' and filters["favorite"] == 'Непрослушанные':
+        res_random = collection.aggregate([{"$match": {user: {"like": {"$exists": False}}}},
                                            {"$sample": {"size": 1}}])
     else:
         res_random = collection.aggregate([{"$match": {"fullname": {"$exists": True}}},
@@ -138,14 +144,68 @@ async def get_years(limit_tracks: int = 10):
     return sorted(res)
 
 
-async def update_filter(user, mode: str, genre: str = None, artist: str = None, year: str = None,
-                        collection=my_music_settings):
+async def update_filter(user, mode: str, genre: str = None, artist: str = None, year: str = None, mood: str = None,
+                        favorite: str = None, collection=my_music_settings):
     result = await collection.update_one({user: {"$exists": True}}, {'$set': {'filter': {'mode': mode,
                                                                                          'genre': genre,
                                                                                          'artist': artist,
-                                                                                         'year': year}}})
+                                                                                         'year': year,
+                                                                                         'mood': mood,
+                                                                                         'favorite': favorite}}})
     if result.matched_count > 0:
         return True
     else:
         return False
 
+
+async def update_user_active(user, collection=my_music_settings):
+    if not await collection.find_one({user: {"$exists": True}}):
+        await collection.insert_one({user: {'register': str(datetime.datetime.now())}})
+    await collection.update_one({user: {"$exists": True}}, {'$set': {'active': 5}})
+
+
+async def discrement_user_active(user, collection=my_music_settings):
+    if not await collection.find_one({user: {"$exists": True}}):
+        await update_user_active(user)
+    value = await collection.find_one({user: {"$exists": True}})
+    discremented = value['active'] - 1
+    await collection.update_one({user: {"$exists": True}}, {'$set': {'active': discremented}})
+
+
+async def user_is_active(user, collection=my_music_settings):
+    if not await collection.find_one({user: {"$exists": True}}):
+        await update_user_active(user)
+    value = await collection.find_one({user: {"$exists": True}})
+    if 'active' in value and value['active'] > 0:
+        return True
+    else:
+        return False
+
+
+async def set_like_dislike(user, feedback, music_collection=my_music_collection, setting_collection=my_music_settings):
+    user_profile = await setting_collection.find_one({user: {"$exists": True}})
+    if user_profile and 'last_track' in user_profile:
+        current_track = user_profile['last_track']['fullname']
+    doc_track = await music_collection.find_one({'fullname': current_track})
+    like_now = None
+    if doc_track and user in doc_track and 'like' in doc_track[user]:
+        like_now = doc_track[user]['like']
+    if feedback == 'like' and like_now != 'like':
+        await music_collection.update_one({'fullname': current_track}, {'$set': {user: {'like': 'like'}}})
+    elif feedback == 'like' and like_now == 'like':
+        await music_collection.update_one({'fullname': current_track}, {'$set': {user: {'like': 'neutral'}}})
+    elif feedback == 'dislike' and like_now != 'dislike':
+        await music_collection.update_one({'fullname': current_track}, {'$set': {user: {'like': 'dislike'}}})
+    elif feedback == 'dislike' and like_now == 'dislike':
+        await music_collection.update_one({'fullname': current_track}, {'$set': {user: {'like': 'neutral'}}})
+
+
+async def get_like_dislike(user, music_collection=my_music_collection, setting_collection=my_music_settings):
+    like_now = 'neutral'
+    user_profile = await setting_collection.find_one({user: {"$exists": True}})
+    if user_profile and 'last_track' in user_profile:
+        current_track = user_profile['last_track']['fullname']
+    doc_track = await music_collection.find_one({'fullname': current_track})
+    if doc_track and user in doc_track and 'like' in doc_track[user]:
+        like_now = doc_track[user]['like']
+    return like_now

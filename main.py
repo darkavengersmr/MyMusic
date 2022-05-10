@@ -26,7 +26,8 @@ import schemas
 from config import SECRET_KEY, EXCEPTION_PER_SEC_LIMIT, \
     ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, MUSIC_STREAM_SOCKET
 
-from db_module import get_credentials, get_top_genres, get_top_artists, get_artists_by_genres, get_years, update_filter
+from db_module import get_credentials, get_top_genres, get_top_artists, get_artists_by_genres, get_years, \
+    update_filter, update_user_active, set_like_dislike, get_like_dislike
 
 client = httpx.AsyncClient(base_url=MUSIC_STREAM_SOCKET)
 
@@ -52,6 +53,10 @@ tags_metadata = [
     {
         "name": "Play Now",
         "description": "Что играет сейчас (Server side events)",
+    },
+    {
+        "name": "Feedback",
+        "description": "Лайки, дислайки, другая обратная связь",
     },
 ]
 
@@ -190,11 +195,12 @@ async def get_filter(mode: str, genre: str = None, limit_tracks: int = 100,
 
 
 @app.post("/filter", response_model=schemas.MyFilterSet, tags=["Filter"])
-async def set_filter(mode: str, genre: str = None, artist: str = None, year: str = None,
-                     current_user: schemas.User = Depends(get_current_user)):
+async def set_filter(mode: str, genre: str = None, artist: str = None, year: str = None, mood: str = None,
+                     favorite: str = None, current_user: schemas.User = Depends(get_current_user)):
     user = current_user['username']
-    modes = ['genre', 'artist', 'year', 'favorites']
-    if mode in modes and await update_filter(user, mode=mode, genre=genre, artist=artist, year=year):
+    modes = ['genre', 'artist', 'year', 'mood', 'favorite']
+    if mode in modes and await update_filter(user, mode=mode, genre=genre, artist=artist, year=year, mood=mood,
+                                             favorite=favorite):
         return {'result': 'filter ok'}
     else:
         raise command_exception
@@ -203,7 +209,8 @@ async def set_filter(mode: str, genre: str = None, artist: str = None, year: str
 @app.post("/now_play", response_model=schemas.PlayNowSet, tags=["Play Now"])
 async def set_now_play(now_play: str, current_user: schemas.User = Depends(get_current_user)):
     user = current_user['username']
-    users_now_play[user] = now_play
+    like = await get_like_dislike(user)
+    users_now_play[user] = f'{now_play} |{like}'
     return {'result': f'update play now: {now_play}'}
 
 
@@ -212,11 +219,13 @@ async def set_now_play(current_user: schemas.User = Depends(get_current_user)):
     user = current_user['username']
     if user in users_now_play:
         users_now_play.pop(user)
+        await update_user_active(user)
         return {'result': f'deletes play now'}
     else:
         return {'result': f'nothing to delete'}
 
 
+# SSE - Server side events - пушим на пользователя метаинформации из трека, который запустился
 @app.get('/now_play', tags=["Play Now"])
 async def message_stream(request: Request, user: str):
     def new_messages():
@@ -240,6 +249,16 @@ async def message_stream(request: Request, user: str):
             await asyncio.sleep(1)
 
     return EventSourceResponse(event_generator())
+
+
+@app.post("/feedback", response_model=schemas.PlayNowSet, tags=["Feedback"])
+async def set_feedback(feedback: str, current_user: schemas.User = Depends(get_current_user)):
+    user = current_user['username']
+    if feedback == 'like' or feedback == 'dislike':
+        await set_like_dislike(user, feedback)
+    else:
+        raise command_exception
+    return {'result': f'feedback ok'}
 
 
 async def _reverse_proxy(request: Request):
