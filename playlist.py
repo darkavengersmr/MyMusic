@@ -11,7 +11,8 @@ import motor.motor_asyncio
 
 from config import DBSOCKET
 
-from db_module import next_track, update_now_play, get_credentials, discrement_user_active, user_is_active
+from db_module import next_track, update_now_play, get_credentials, discrement_user_active, user_is_active, \
+    get_prev_track
 
 loop = asyncio.get_event_loop()
 
@@ -23,8 +24,11 @@ my_music_settings = db.settings
 # выясняем пользователя, которому нужно поставить трек
 user = sys.argv[0][sys.argv[0].find("_")+1:len(sys.argv[0])-3]
 
-# получаем следующий трек для пользователя по его предпочтениям
-track = loop.run_until_complete(next_track(user, collection=my_music_collection))
+# смотрим нужно ли переходить к предыдущему треку
+track = loop.run_until_complete(get_prev_track(user))
+if not track:
+    # получаем следующий трек для пользователя по его предпочтениям
+    track = loop.run_until_complete(next_track(user, collection=my_music_collection))
 
 # читаем из трека метаинформацию
 tag = TinyTag.get(track['fullname'].rstrip())

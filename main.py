@@ -27,7 +27,7 @@ from config import SECRET_KEY, EXCEPTION_PER_SEC_LIMIT, \
     ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, MUSIC_STREAM_SOCKET
 
 from db_module import get_credentials, get_top_genres, get_top_artists, get_artists_by_genres, get_years, \
-    update_filter, update_user_active, set_like_dislike, get_like_dislike
+    update_filter, update_user_active, set_like_dislike, get_like_dislike, prev_track_mode, get_filters, get_now_play
 
 client = httpx.AsyncClient(base_url=MUSIC_STREAM_SOCKET)
 
@@ -162,18 +162,22 @@ async def playback(operation: str, current_user: schemas.User = Depends(get_curr
             os.system(f'rm playlist_{user}.py')
             subprocess.Popen(['kill', '-9', str(proc_pid[user])])
             proc_pid.pop(user)
-    elif operation == 'next': # or operation == 'prev':
+    elif operation == 'next' or operation == 'prev':
         if user in proc_pid:
+            if operation == 'prev':
+                await prev_track_mode(user)
             subprocess.Popen(['kill', '-SIGHUP', str(proc_pid[user])])
             subprocess.Popen(['kill', '-SIGUSR1', str(proc_pid[user])])
-            return {f'operation': 'next ok', 'username': user}
+            return {f'operation': 'prev/next ok', 'username': user}
         else:
             return {f'operation': 'status: stop', 'username': user}
     elif operation == 'status':
+        filters = await get_filters(user)
         if user in proc_pid:
-            return {f'operation': 'status: play', 'username': user}
+            now_play = await get_now_play(user)
+            return {f'operation': 'status: play', 'username': user, 'now_play': now_play, **filters, }
         else:
-            return {f'operation': 'status: stop', 'username': user}
+            return {f'operation': 'status: stop', 'username': user, 'now_play': None, **filters}
     else:
         raise command_exception
     return {f'operation': f'{operation} ok', 'username': user}

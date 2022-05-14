@@ -1,5 +1,6 @@
 from pydantic import BaseModel, BaseSettings
-from typing import List
+from typing import List, Union
+
 
 class Settings(BaseSettings):
     USER: str
@@ -29,6 +30,13 @@ class TokenData(BaseModel):
 class Playback(BaseModel):
     operation: str
     username: str
+    mode: Union[str, None] = None
+    genre: Union[str, None] = None
+    artist: Union[str, None] = None
+    year: Union[str, None] = None
+    mood: Union[str, None] = None
+    favorite: Union[str, None] = None
+    now_play: Union[str, None] = None
 
 
 class MyFilterQuery(BaseModel):

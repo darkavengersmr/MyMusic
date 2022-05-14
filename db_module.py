@@ -1,10 +1,11 @@
 #!/usr/bin/python3
 
 import datetime
+import random
 import motor.motor_asyncio
 from tinytag import TinyTag
 
-from config import DBSOCKET
+from config import DBSOCKET, moods
 
 db_client = motor.motor_asyncio.AsyncIOMotorClient(f'mongodb://{DBSOCKET}')
 db = db_client.my_music
@@ -52,7 +53,11 @@ async def next_track(user, collection=my_music_collection):
         res_random = collection.aggregate([{"$match": {user: {"like": "like"}}},
                                            {"$sample": {"size": 1}}])
     elif filters['mode'] == 'favorite' and filters["favorite"] == 'Непрослушанные':
-        res_random = collection.aggregate([{"$match": {user: {"like": {"$exists": False}}}},
+        res_random = collection.aggregate([{"$match": {user: {"$exists": False}}},
+                                           {"$sample": {"size": 1}}])
+    elif filters['mode'] == 'mood' and filters["mood"] in moods:
+        mood = random.randint(0, len(moods[filters["mood"]]))
+        res_random = collection.aggregate([{"$match": {"genre": moods[filters["mood"]][mood]}},
                                            {"$sample": {"size": 1}}])
     else:
         res_random = collection.aggregate([{"$match": {"fullname": {"$exists": True}}},
@@ -95,12 +100,42 @@ async def add_to_db(collection, playlist):
 
 async def update_now_play(collection, user, track, tags):
     if await collection.find_one({user: {"$exists": True}}):
+        prev_track_doc = await collection.find_one({user: {"$exists": True}})
+        track_name = prev_track_doc['last_track']['fullname']
         await collection.update_one({user: {"$exists": True}},
-                                    {'$set': {'last_track': {'fullname': track, **tags}}})
+                                    {'$set': {'last_track': {'fullname': track, **tags},
+                                              'prev_track': {'fullname': track_name, 'play': False}}})
     else:
         await collection.insert_one({user: {'register': str(datetime.datetime.now())}})
         await collection.update_one({user: {"$exists": True}},
-                                    {'$set': {'last_track': {'fullname': track, **tags}}})
+                                    {'$set': {'last_track': {'fullname': track, **tags},
+                                              "prev_track": {'fullname': track, 'play': False}}})
+
+
+async def get_now_play(user, collection=my_music_settings):
+    if await collection.find_one({user: {"$exists": True}}):
+        now_play = await collection.find_one({user: {"$exists": True}})
+        if now_play:
+            return f"{now_play['last_track']['artist']} - {now_play['last_track']['title']}"
+
+
+async def prev_track_mode(user, collection=my_music_settings):
+    if await collection.find_one({user: {"$exists": True}}):
+        prev_track_doc = await collection.find_one({user: {"$exists": True}})
+        await collection.update_one({user: {"$exists": True}},
+                                    {'$set': {'prev_track': {'play': True, 'fullname':
+                                        prev_track_doc['prev_track']['fullname']}}})
+
+
+async def get_prev_track(user, collection=my_music_settings):
+    if await collection.find_one({user: {"$exists": True}}):
+        prev_track_doc = await collection.find_one({user: {"$exists": True}})
+        if 'prev_track' in prev_track_doc and 'fullname' in prev_track_doc['prev_track']:
+            await collection.update_one({user: {"$exists": True}},
+                                        {'$set': {'prev_track': {'play': False, 'fullname':
+                                        prev_track_doc['prev_track']['fullname']}}})
+            if prev_track_doc['prev_track']['play']:
+                return {'fullname': prev_track_doc['prev_track']['fullname']}
 
 
 async def get_credentials():
