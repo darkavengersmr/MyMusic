@@ -17,3 +17,5 @@ Backend стримингового сервиса "Моя.Музыка".
 - консольная утилита mm_cli для создания/синхронизации БД с метаинформацией
 
 Frontend здесь https://github.com/darkavengersmr/MyMusicUI
+
+![alt text](screenshots/screenshot.jpg "Моя.Музыка")
