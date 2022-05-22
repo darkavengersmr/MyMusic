@@ -174,9 +174,16 @@ async def playback(operation: str, current_user: schemas.User = Depends(get_curr
     if operation == 'play':
         if user not in proc_pid:
             template_out = open(f"ezstream_{user}.xml", "w")
+            options = await get_options(user)
+            if options['normalize']:
+                normalize = "-G"
+            else:
+                normalize = ""
             with open("ezstream_template.xml", "r") as template_in:
                 for line in template_in:
-                    template_out.write(line.replace('%USERNAME%', user))
+                    template_out.write(line.replace('%USERNAME%', user)
+                                       .replace('%QUALITY%', options['quality'])
+                                       .replace('%NORMALIZE%', normalize))
             template_out.close()
             os.system(f'cp playlist.py playlist_{user}.py')
             proc_pid[user] = subprocess.Popen(['ezstream', '-c', f'/ezstream/ezstream_{user}.xml']).pid
