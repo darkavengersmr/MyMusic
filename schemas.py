@@ -18,6 +18,17 @@ class User(BaseModel):
     username: str
 
 
+class UserRegisterResult(BaseModel):
+    result: str
+
+
+class UserRegister(BaseModel):
+    username: str
+    password: str
+    email: str
+    invite: str
+
+
 class Token(BaseModel):
     access_token: str
     token_type: str
@@ -53,3 +64,10 @@ class MyFilterSet(BaseModel):
 
 class PlayNowSet(BaseModel):
     result: str
+
+
+class Options(BaseModel):
+    radio_effect: Union[bool, None] = True
+    normalize: Union[bool, None] = True
+    external_player: Union[bool, None] = False
+    quality: Union[str, None] = "2"

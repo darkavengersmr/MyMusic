@@ -23,11 +23,12 @@ import httpx
 
 import schemas
 
-from config import SECRET_KEY, EXCEPTION_PER_SEC_LIMIT, \
-    ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, MUSIC_STREAM_SOCKET
+from config import SECRET_KEY, EXCEPTION_PER_SEC_LIMIT, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, MUSIC_STREAM_SOCKET, \
+    MY_INVITE
 
 from db_module import get_credentials, get_top_genres, get_top_artists, get_artists_by_genres, get_years, \
-    update_filter, update_user_active, set_like_dislike, get_like_dislike, prev_track_mode, get_filters, get_now_play
+    update_filter, update_user_active, set_like_dislike, get_like_dislike, prev_track_mode, get_filters, get_now_play, \
+    set_options, get_options, create_db_user
 
 client = httpx.AsyncClient(base_url=MUSIC_STREAM_SOCKET)
 
@@ -38,6 +39,10 @@ proc_pid = {}
 users_now_play = {}
 
 tags_metadata = [
+    {
+        "name": "Register",
+        "description": "Регистрация",
+    },
     {
         "name": "Auth",
         "description": "Авторизация",
@@ -57,6 +62,10 @@ tags_metadata = [
     {
         "name": "Feedback",
         "description": "Лайки, дислайки, другая обратная связь",
+    },
+    {
+        "name": "Options",
+        "description": "Настройки клиентского приложения",
     },
 ]
 
@@ -125,6 +134,21 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 @app.get("/")
 async def redirect_login():
     return RedirectResponse(url=f"/index.html", status_code=303)
+
+
+@app.post("/register", response_model=schemas.UserRegisterResult, tags=["Register"])
+async def create_user(user: schemas.UserRegister):
+    db_users = await get_credentials()
+    if user.username in db_users:
+        await asyncio.sleep(EXCEPTION_PER_SEC_LIMIT)
+        raise HTTPException(status_code=400, detail="User with this email already registered")
+    if user.invite != MY_INVITE:
+        await asyncio.sleep(EXCEPTION_PER_SEC_LIMIT)
+        raise HTTPException(status_code=400, detail="Invite is broken")
+    if await create_db_user(dict(user)):
+        return {'result': f'New user {user.username} registered'}
+    else:
+        return {'result': f'Error registration'}
 
 
 @app.post("/auth", response_model=schemas.Token , tags=["Auth"])
@@ -263,6 +287,21 @@ async def set_feedback(feedback: str, current_user: schemas.User = Depends(get_c
     else:
         raise command_exception
     return {'result': f'feedback ok'}
+
+
+@app.get("/options", response_model=schemas.Options, tags=["Options"])
+async def read_options(current_user: schemas.User = Depends(get_current_user)):
+    user = current_user['username']
+    return await get_options(user)
+
+
+@app.put("/options", response_model=schemas.Options, tags=["Options"])
+async def update_options(options: schemas.Options, current_user: schemas.User = Depends(get_current_user)):
+    user = current_user['username']
+    if await set_options(user, dict(options)):
+        return {'result': 'options ok'}
+    else:
+        raise command_exception
 
 
 async def _reverse_proxy(request: Request):

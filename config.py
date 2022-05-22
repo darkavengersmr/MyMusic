@@ -9,6 +9,7 @@ ALGORITHM = config('ALGORITHM')
 ACCESS_TOKEN_EXPIRE_MINUTES = config('ACCESS_TOKEN_EXPIRE_MINUTES', cast=int)
 DBSOCKET = config('DBSOCKET')
 MUSIC_STREAM_SOCKET = config('MUSIC_STREAM_SOCKET')
+MY_INVITE = config('MY_INVITE')
 
 moods = {
         "Энергичное": ['Heavy Metal', 'Rockabilly Metal', 'Power Metal', 'Pop-Rock', 'Metal', 'Rock', 'Thrash Metal', 'Electronic', 'Rock & Roll', 'Glam Metal', 'Pop', 'Punk Rock', 'Hard Rock'],

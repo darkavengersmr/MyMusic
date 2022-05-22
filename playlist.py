@@ -12,7 +12,7 @@ import motor.motor_asyncio
 from config import DBSOCKET
 
 from db_module import next_track, update_now_play, get_credentials, discrement_user_active, user_is_active, \
-    get_prev_track
+    get_prev_track, add_to_history
 
 loop = asyncio.get_event_loop()
 
@@ -42,6 +42,9 @@ tags = {
 
 # пишем в профиль пользователя какой трек сейчас будем запускать
 loop.run_until_complete(update_now_play(my_music_settings, user, track['fullname'], tags))
+
+# пишем историю
+loop.run_until_complete(add_to_history(user, tags))
 
 # Отправляем на Rest метаинформацию (исполнитель, название) о треке, который будем запускать
 credentials = loop.run_until_complete(get_credentials())

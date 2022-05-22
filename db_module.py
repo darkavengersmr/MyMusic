@@ -11,6 +11,7 @@ db_client = motor.motor_asyncio.AsyncIOMotorClient(f'mongodb://{DBSOCKET}')
 db = db_client.my_music
 my_music_collection = db.music
 my_music_settings = db.settings
+my_music_history = db.history
 
 
 async def do_insert_one(collection, document):
@@ -55,8 +56,16 @@ async def next_track(user, collection=my_music_collection):
     elif filters['mode'] == 'favorite' and filters["favorite"] == 'Непрослушанные':
         res_random = collection.aggregate([{"$match": {user: {"$exists": False}}},
                                            {"$sample": {"size": 1}}])
+    elif filters['mode'] == 'favorite' and filters["favorite"] == 'Любимые исполнители':
+        artist = await get_favorite_artist(user)
+        res_random = collection.aggregate([{"$match": {"artist": artist}},
+                                           {"$sample": {"size": 1}}])
+    elif filters['mode'] == 'favorite' and filters["favorite"] == 'Любимые жанры':
+        genre = await get_favorite_genre(user)
+        res_random = collection.aggregate([{"$match": {"genre": genre}},
+                                           {"$sample": {"size": 1}}])
     elif filters['mode'] == 'mood' and filters["mood"] in moods:
-        mood = random.randint(0, len(moods[filters["mood"]]))
+        mood = random.randint(0, len(moods[filters["mood"]])-1)
         res_random = collection.aggregate([{"$match": {"genre": moods[filters["mood"]][mood]}},
                                            {"$sample": {"size": 1}}])
     else:
@@ -68,7 +77,7 @@ async def next_track(user, collection=my_music_collection):
             res.append(el)
     except:
         res_random = collection.aggregate([{"$match": {"fullname": {"$exists": True}}},
-                                           {"$sample": {"size": 1}}])
+                                           {"$sample": {"size": 5}}])
         async for el in res_random:
             res.append(el)
     return res[0]
@@ -110,6 +119,10 @@ async def update_now_play(collection, user, track, tags):
         await collection.update_one({user: {"$exists": True}},
                                     {'$set': {'last_track': {'fullname': track, **tags},
                                               "prev_track": {'fullname': track, 'play': False}}})
+
+
+async def add_to_history(user, tags, collection=my_music_history):
+    await collection.insert_one({user: {'date': str(datetime.datetime.now()), **tags}})
 
 
 async def get_now_play(user, collection=my_music_settings):
@@ -157,6 +170,26 @@ async def get_top_artists(limit_tracks: int = 100):
         if el['count'] > limit_tracks and el['_id'] is not None and 1 < len(el['_id']) < 32:
             res.append(el['_id'])
     return res
+
+
+async def get_favorite_artist(user: str):
+    res = []
+    async for el in my_music_collection.aggregate([{"$match": {user: {"like": "like"}}},
+                                                   {'$group': {'_id': '$artist', 'count': {'$sum': 1}}}]):
+        if el['_id'] is not None:
+            res.append(el['_id'])
+    if len(res) > 0:
+        return res[random.randint(0, len(res))-1]
+
+
+async def get_favorite_genre(user: str):
+    res = []
+    async for el in my_music_collection.aggregate([{"$match": {user: {"like": "like"}}},
+                                                   {'$group': {'_id': '$genre', 'count': {'$sum': 1}}}]):
+        if el['_id'] is not None:
+            res.append(el['_id'])
+    if len(res) > 0:
+        return res[random.randint(0, len(res))-1]
 
 
 async def get_artists_by_genres(genre: str):
@@ -244,3 +277,32 @@ async def get_like_dislike(user, music_collection=my_music_collection, setting_c
     if doc_track and user in doc_track and 'like' in doc_track[user]:
         like_now = doc_track[user]['like']
     return like_now
+
+
+async def set_options(user, options, collection=my_music_settings):
+    result = await collection.update_one({user: {"$exists": True}}, {'$set': {'options': options}})
+    if result.matched_count > 0:
+        return True
+    else:
+        return False
+
+
+async def get_options(user, collection=my_music_settings):
+    settings = await collection.find_one({user: {"$exists": True}})
+    if settings and 'options' in settings:
+        return settings['options']
+    else:
+        return {'radio_effect': True, 'normalize': True, 'external_player': False, 'quality': "2"}
+
+
+async def create_db_user(user, collection=my_music_settings):
+    logins = await collection.find_one({'login': {"$exists": True}})
+    result = await collection.update_one({'login': {"$exists": True}},
+                                         {'$set': {'login': {**logins['login'], user['username']: user['password']}}})
+    if result.matched_count > 0:
+        return True
+    else:
+        return False
+
+
+
